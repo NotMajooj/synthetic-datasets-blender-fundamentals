@@ -1,0 +1,64 @@
+import bpy
+
+# 1. Limpar a cena
+bpy.ops.object.select_all(action='SELECT')
+bpy.ops.object.delete()
+
+# 2. Criar um objeto visível (o que a câmera vai filmar/rastrear)
+bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 1))
+target_object = bpy.context.active_object
+target_object.name = "TargetObject"
+
+# 3. Criar uma luz (senão a cena fica preta no render)
+bpy.ops.object.light_add(type='SUN', location=(5, -5, 10))
+light = bpy.context.active_object
+light.data.energy = 3
+
+# 4. Criar o alvo (Track To Empty) — no mesmo lugar do objeto visível
+bpy.ops.object.empty_add(type='CUBE', align='WORLD', location=(0, 0, 1))
+target_empty = bpy.context.active_object
+target_empty.name = "track to empty"
+target_empty.scale = (0.2, 0.2, 0.2)
+
+# 5. Criar a Câmera
+bpy.ops.object.camera_add(location=(5, -5, 5))
+camera = bpy.context.active_object
+
+# 6. Criar o Caminho (Path) para a Câmera circular
+bpy.ops.curve.primitive_nurbs_path_add(radius=5, location=(0, 0, 1))
+path = bpy.context.active_object
+path.name = "CameraPath"
+
+# 7. Criar o "Camera Container" (Empty que segue o caminho)
+bpy.ops.object.empty_add(type='CUBE', radius=0.2, location=(0, 0, 0))
+container = bpy.context.active_object
+container.name = "camera container"
+
+# 8. Adicionar Constraint "Follow Path" ao Container
+follow_path = container.constraints.new(type='FOLLOW_PATH')
+follow_path.target = path
+
+# 9. Tornar a Câmera filha do Container (Child Of) — criada antes da Track To
+child_of = camera.constraints.new(type='CHILD_OF')
+child_of.target = container
+
+# 10. Configurar a Constraint "Track To" na Câmera
+track_constraint = camera.constraints.new(type='TRACK_TO')
+track_constraint.target = target_empty
+track_constraint.up_axis = 'UP_Y'
+track_constraint.track_axis = 'TRACK_NEGATIVE_Z'
+
+# 11. Definir essa câmera como a câmera ativa da cena (importante!)
+bpy.context.scene.camera = camera
+
+# 12. Animação do Offset (Keyframes)
+container.constraints["Follow Path"].offset = 0
+container.constraints["Follow Path"].keyframe_insert(data_path="offset", frame=1)
+
+container.constraints["Follow Path"].offset = -100
+container.constraints["Follow Path"].keyframe_insert(data_path="offset", frame=100)
+
+# 13. Configuração de Render
+bpy.context.scene.render.engine = 'CYCLES'
+bpy.context.scene.render.filepath = "/home/maju/synthetic-datasets-blender-fundamentals/assets/render_camera_path.png"
+bpy.ops.render.render(write_still=True)
